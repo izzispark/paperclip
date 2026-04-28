@@ -81,12 +81,20 @@ function resolveAgentJwtSecretStatus(
   }
 
   if (existsSync(envFilePath)) {
-    const parsed = parseEnvFileContents(readFileSync(envFilePath, "utf-8"));
-    const fileValue = typeof parsed.PAPERCLIP_AGENT_JWT_SECRET === "string" ? parsed.PAPERCLIP_AGENT_JWT_SECRET.trim() : "";
-    if (fileValue) {
+    try {
+      const parsed = parseEnvFileContents(readFileSync(envFilePath, "utf-8"));
+      const fileValue = typeof parsed.PAPERCLIP_AGENT_JWT_SECRET === "string" ? parsed.PAPERCLIP_AGENT_JWT_SECRET.trim() : "";
+      if (fileValue) {
+        return {
+          status: "warn",
+          message: `found in ${envFilePath} but not loaded`,
+        };
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       return {
         status: "warn",
-        message: `found in ${envFilePath} but not loaded`,
+        message: `unable to read ${envFilePath} (${message})`,
       };
     }
   }

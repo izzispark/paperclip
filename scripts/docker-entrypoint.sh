@@ -26,4 +26,10 @@ if [ "$changed" = "1" ]; then
     chown -R node:node /paperclip
 fi
 
+# Ensure persistent home paths exist and are always writable/readable by node,
+# even when UID/GID remapping is not needed.
+mkdir -p /paperclip /paperclip/instances/default /paperclip/.infisical
+chown -R node:node /paperclip
+chmod -R u+rwX /paperclip
+
 exec gosu node "$@"
