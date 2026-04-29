@@ -10,6 +10,8 @@ The `gemini_local` adapter runs Google's Gemini CLI locally. It supports session
 - Gemini CLI installed (`gemini` command available)
 - `GEMINI_API_KEY` or `GOOGLE_API_KEY` set, or local Gemini CLI auth configured
 
+When you run Paperclip via the bundled Docker image, the Gemini CLI is installed as part of the runtime image.
+
 ## Configuration Fields
 
 | Field | Type | Required | Description |
