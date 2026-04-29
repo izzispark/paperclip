@@ -28,9 +28,10 @@ fi
 
 # Ensure persistent home paths exist and are always writable/readable by node,
 # even when UID/GID remapping is not needed.
-mkdir -p /paperclip /paperclip/instances/default /paperclip/.infisical
+mkdir -p /paperclip /paperclip/instances/default /paperclip/.infisical /paperclip/.gemini
 chown -R node:node /paperclip
 chmod -R u+rwX /paperclip
+chmod 700 /paperclip/.gemini
 
 # Keep global CLI installs reachable after gosu hands off to the node user.
 export PATH="/usr/local/bin:$PATH"
