@@ -36,4 +36,7 @@ chmod 700 /paperclip/.gemini
 # Keep global CLI installs reachable after gosu hands off to the node user.
 export PATH="/usr/local/bin:$PATH"
 
+# Keep global CLI installs reachable after gosu hands off to the node user.
+export PATH="/usr/local/bin:$PATH"
+
 exec gosu node "$@"
