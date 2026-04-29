@@ -32,4 +32,7 @@ mkdir -p /paperclip /paperclip/instances/default /paperclip/.infisical
 chown -R node:node /paperclip
 chmod -R u+rwX /paperclip
 
+# Keep global CLI installs reachable after gosu hands off to the node user.
+export PATH="/usr/local/bin:$PATH"
+
 exec gosu node "$@"
