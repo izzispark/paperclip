@@ -41,6 +41,7 @@ echo "==> Verifying key binaries in image"
   python3 --version
   curl --version | head -1
   claude --version 2>/dev/null || echo "claude CLI not found (OK in minimal builds)"
+  gemini --version
 '
 
 echo "PASS: Docker build test succeeded"
