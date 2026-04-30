@@ -1556,6 +1556,19 @@ export function recoveryService(db: Db, deps: { enqueueWakeup: RecoveryWakeup })
     return updated;
   }
 
+  async function escalateRunLivenessContinuationExhaustedIssue(input: {
+    issue: typeof issues.$inferSelect;
+    latestRun: typeof heartbeatRuns.$inferSelect;
+    comment: string;
+  }) {
+    return escalateStrandedAssignedIssue({
+      issue: input.issue,
+      previousStatus: input.issue.status as "todo" | "in_progress",
+      latestRun: input.latestRun,
+      comment: input.comment,
+    });
+  }
+
   async function reconcileStrandedAssignedIssues() {
     const candidates = await db
       .select()
@@ -2499,6 +2512,7 @@ export function recoveryService(db: Db, deps: { enqueueWakeup: RecoveryWakeup })
   return {
     buildRunOutputSilence,
     escalateStrandedAssignedIssue,
+    escalateRunLivenessContinuationExhaustedIssue,
     recordWatchdogDecision,
     scanSilentActiveRuns,
     reconcileStrandedAssignedIssues,

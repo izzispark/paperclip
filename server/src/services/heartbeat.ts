@@ -2836,6 +2836,31 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     });
 
     if (decision.kind === "exhausted") {
+      const exhaustedIssue = issue
+        ? await db
+            .select()
+            .from(issues)
+            .where(and(eq(issues.id, issue.id), eq(issues.companyId, run.companyId)))
+            .then((rows) => rows[0] ?? null)
+        : null;
+      if (exhaustedIssue) {
+        const escalated = await recovery.escalateRunLivenessContinuationExhaustedIssue({
+          issue: exhaustedIssue,
+          latestRun: run,
+          comment: decision.comment,
+        });
+        if (escalated) {
+          await setRunStatus(run.id, run.status, {
+            livenessReason: `${run.livenessReason ?? "Run ended without concrete progress"}; continuation attempts exhausted`,
+          });
+          await addContinuationExhaustedCommentOnce({
+            run,
+            issueId,
+            comment: decision.comment,
+          });
+          return;
+        }
+      }
       await setRunStatus(run.id, run.status, {
         livenessReason: `${run.livenessReason ?? "Run ended without concrete progress"}; continuation attempts exhausted`,
       });

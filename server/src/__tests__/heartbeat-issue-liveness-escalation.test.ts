@@ -21,6 +21,7 @@ import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
+import { recoveryService } from "../services/recovery/service.ts";
 
 const mockAdapterExecute = vi.hoisted(() =>
   vi.fn(async () => ({
@@ -197,6 +198,66 @@ describeEmbeddedPostgres("heartbeat issue graph liveness escalation", () => {
     return { companyId, managerId, coderId, blockedIssueId, blockerIssueId };
   }
 
+  async function seedContinuationExhaustionIssue() {
+    const companyId = randomUUID();
+    const agentId = randomUUID();
+    const issueId = randomUUID();
+    const runId = randomUUID();
+    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const now = new Date("2026-04-22T21:00:00.000Z");
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      companyId,
+      name: "Engineer",
+      role: "engineer",
+      status: "idle",
+      adapterType: "codex_local",
+      adapterConfig: {},
+      runtimeConfig: { heartbeat: { wakeOnDemand: false } },
+      permissions: {},
+    });
+
+    await db.insert(issues).values({
+      id: issueId,
+      companyId,
+      title: "Finish the last user-facing step",
+      status: "in_progress",
+      priority: "medium",
+      assigneeAgentId: agentId,
+      issueNumber: 1,
+      identifier: `${issuePrefix}-1`,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(heartbeatRuns).values({
+      id: runId,
+      companyId,
+      agentId,
+      invocationSource: "assignment",
+      triggerDetail: "system",
+      status: "succeeded",
+      startedAt: now,
+      finishedAt: now,
+      livenessState: "plan_only",
+      livenessReason: "Planned without acting",
+      continuationAttempt: 2,
+      nextAction: null,
+      contextSnapshot: { issueId },
+      updatedAt: now,
+    });
+
+    return { companyId, agentId, issueId, runId };
+  }
+
   it("keeps liveness findings advisory when auto recovery is disabled", async () => {
     await instanceSettingsService(db).updateExperimental({
       enableIssueGraphLivenessAutoRecovery: false,
@@ -346,6 +407,49 @@ describeEmbeddedPostgres("heartbeat issue graph liveness escalation", () => {
       },
     });
     expect(events.some((event) => event.action === "issue.blockers.updated")).toBe(true);
+  });
+
+  it("blocks the issue after liveness continuation exhaustion instead of leaving it open", async () => {
+    const { companyId, agentId, issueId, runId } = await seedContinuationExhaustionIssue();
+    const recovery = recoveryService(db, { enqueueWakeup: vi.fn() });
+    const run = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).then((rows) => rows[0]);
+    const issue = await db.select().from(issues).where(eq(issues.id, issueId)).then((rows) => rows[0]);
+
+    expect(run).toBeTruthy();
+    expect(issue).toBeTruthy();
+    if (!run || !issue) return;
+
+    const comment = [
+      "Bounded liveness continuation exhausted",
+      "",
+      "- Next action: a human or manager should inspect the run and either clarify the task, mark it blocked, or assign a concrete follow-up.",
+    ].join("\n");
+
+    const updated = await recovery.escalateRunLivenessContinuationExhaustedIssue({
+      issue,
+      latestRun: run,
+      comment,
+    });
+
+    expect(updated).toBeTruthy();
+
+    const reloadedIssue = await db.select().from(issues).where(eq(issues.id, issueId)).then((rows) => rows[0]);
+    expect(reloadedIssue?.status).toBe("blocked");
+    const blockers = await db
+      .select({ blockerIssueId: issueRelations.issueId })
+      .from(issueRelations)
+      .where(eq(issueRelations.relatedIssueId, issueId));
+    expect(blockers.length).toBeGreaterThan(0);
+
+    const comments = await db.select().from(issueComments).where(eq(issueComments.issueId, issueId));
+    expect(comments.some((entry) => entry.body.includes("Recovery issue"))).toBe(true);
+
+    const recoveryIssue = await db
+      .select()
+      .from(issues)
+      .where(and(eq(issues.companyId, companyId), eq(issues.originKind, "stranded_issue_recovery")));
+    expect(recoveryIssue.length).toBe(1);
+    expect(recoveryIssue[0]?.assigneeAgentId).toBe(agentId);
   });
 
   it("skips budget-blocked direct owners and assigns recovery to the manager fallback", async () => {
