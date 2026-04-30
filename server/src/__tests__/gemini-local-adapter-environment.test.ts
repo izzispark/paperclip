@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { testEnvironment } from "@paperclipai/adapter-gemini-local/server";
 
-async function writeFakeGeminiCommand(binDir: string, argsCapturePath: string): Promise<string> {
+async function writeFakeGeminiCommand(binDir: string, argsCapturePath: string, resultText = "hello"): Promise<string> {
   const commandPath = path.join(binDir, "gemini");
   const script = `#!/usr/bin/env node
 const fs = require("node:fs");
@@ -14,12 +14,12 @@ if (outPath) {
 }
 console.log(JSON.stringify({
   type: "assistant",
-  message: { content: [{ type: "output_text", text: "hello" }] },
+  message: { content: [{ type: "output_text", text: ${JSON.stringify(resultText)} }] },
 }));
 console.log(JSON.stringify({
   type: "result",
   subtype: "success",
-  result: "hello",
+  result: ${JSON.stringify(resultText)},
 }));
 `;
   await fs.writeFile(commandPath, script, "utf8");
@@ -101,6 +101,36 @@ describe("gemini_local environment diagnostics", () => {
     expect(args).toContain("--approval-mode");
     expect(args).toContain("yolo");
     expect(args).toContain("--prompt");
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  it("passes the hello probe when Gemini returns a successful result without the literal hello text", async () => {
+    const root = path.join(
+      os.tmpdir(),
+      `paperclip-gemini-local-probe-alt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const binDir = path.join(root, "bin");
+    const cwd = path.join(root, "workspace");
+    const argsCapturePath = path.join(root, "args.json");
+    await fs.mkdir(binDir, { recursive: true });
+    await writeFakeGeminiCommand(binDir, argsCapturePath, "greetings");
+
+    const result = await testEnvironment({
+      companyId: "company-1",
+      adapterType: "gemini_local",
+      config: {
+        command: "gemini",
+        cwd,
+        env: {
+          GEMINI_API_KEY: "test-key",
+          PAPERCLIP_TEST_ARGS_PATH: argsCapturePath,
+          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        },
+      },
+    });
+
+    expect(result.status).not.toBe("fail");
+    expect(result.checks.some((check) => check.code === "gemini_hello_probe_passed")).toBe(true);
     await fs.rm(root, { recursive: true, force: true });
   });
 

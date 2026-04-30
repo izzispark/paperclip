@@ -196,15 +196,15 @@ export async function testEnvironment(
         });
       } else if ((probe.exitCode ?? 1) === 0) {
         const summary = parsed.summary.trim();
-        const hasHello = /\bhello\b/i.test(summary);
+        const hasSuccessfulResult = parsed.resultEvent !== null;
         checks.push({
-          code: hasHello ? "gemini_hello_probe_passed" : "gemini_hello_probe_unexpected_output",
-          level: hasHello ? "info" : "warn",
-          message: hasHello
+          code: hasSuccessfulResult ? "gemini_hello_probe_passed" : "gemini_hello_probe_unexpected_output",
+          level: hasSuccessfulResult ? "info" : "warn",
+          message: hasSuccessfulResult
             ? "Gemini hello probe succeeded."
-            : "Gemini probe ran but did not return `hello` as expected.",
+            : "Gemini probe ran without a result event.",
           ...(summary ? { detail: summary.replace(/\s+/g, " ").trim().slice(0, 240) } : {}),
-          ...(hasHello
+          ...(hasSuccessfulResult
             ? {}
             : {
               hint: "Try `gemini --output-format json \"Respond with hello.\"` manually to inspect full output.",
