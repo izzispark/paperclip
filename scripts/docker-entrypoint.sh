@@ -28,7 +28,7 @@ fi
 
 # Ensure persistent home paths exist and are always writable/readable by node,
 # even when UID/GID remapping is not needed.
-mkdir -p /paperclip /paperclip/instances/default /paperclip/.infisical /paperclip/.gemini
+mkdir -p /paperclip /paperclip/instances/default /paperclip/.infisical /paperclip/.gemini /paperclip/.local /paperclip/.config
 chown -R node:node /paperclip
 chmod -R u+rwX /paperclip
 chmod 700 /paperclip/.gemini
