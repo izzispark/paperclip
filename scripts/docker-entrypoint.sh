@@ -32,6 +32,7 @@ mkdir -p /paperclip /paperclip/instances/default /paperclip/.infisical /papercli
 chown -R node:node /paperclip
 chmod -R u+rwX /paperclip
 chmod 700 /paperclip/.gemini
+chmod 700 /paperclip/.local /paperclip/.config
 
 # Keep global CLI installs reachable after gosu hands off to the node user.
 export PATH="/usr/local/bin:$PATH"
